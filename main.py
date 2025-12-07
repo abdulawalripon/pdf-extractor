@@ -12,6 +12,35 @@ reader = easyocr.Reader(['bn', 'en'])
 
 app = FastAPI(title="PDF -> JSON Extractor")
 
+@app.post("/extract_ocr")
+async def extract_pdf_ocr(file: UploadFile = File(...)):
+    contents = await file.read()
+
+    # STEP 3-A: Convert PDF → images
+    pages = convert_from_bytes(contents, 300)
+
+    result = {"pages": []}
+
+    for i, img in enumerate(pages, start=1):
+        
+        # STEP 3-C: Use EasyOCR on the image (place code HERE)
+        ocr_results = reader.readtext(img)
+        text = "\n".join([r[1] for r in ocr_results])
+
+        # STEP 3-D: Convert page image to Base64 (optional)
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        img_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+        # Add to output
+        result["pages"].append({
+            "page_number": i,
+            "ocr_text": text,
+            "page_image_base64": img_b64
+        })
+
+    return result
+
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 @app.post("/extract")
@@ -62,4 +91,5 @@ async def extract_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"PDF parsing error: {str(e)}")
 
     return JSONResponse(content=result)
+
 
