@@ -1,3 +1,4 @@
+import easyocr
 import os
 import io
 import json
@@ -6,6 +7,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import pdfplumber
 from PIL import Image
+
+reader = easyocr.Reader(['bn', 'en'])
 
 app = FastAPI(title="PDF -> JSON Extractor")
 
@@ -59,3 +62,4 @@ async def extract_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"PDF parsing error: {str(e)}")
 
     return JSONResponse(content=result)
+
