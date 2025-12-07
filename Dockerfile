@@ -1,10 +1,7 @@
-# ----------------------------------------------------------
-# 1. Base image WITH PyTorch (CPU version)
-# ----------------------------------------------------------
-FROM pytorch/pytorch:2.0.1-cpu
+FROM python:3.10-slim
 
 # ----------------------------------------------------------
-# 2. Install system dependencies
+# 1. Install system dependencies
 # ----------------------------------------------------------
 RUN apt-get update && apt-get install -y \
     poppler-utils \
@@ -19,31 +16,35 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------------------------------------
-# 3. Create working directory
+# 2. Create working directory
 # ----------------------------------------------------------
 WORKDIR /app
 
 # ----------------------------------------------------------
-# 4. Copy requirements
+# 3. Copy requirements
 # ----------------------------------------------------------
 COPY requirements.txt .
 
 # ----------------------------------------------------------
-# 5. Install Python dependencies
+# 4. Install Python dependencies
 # ----------------------------------------------------------
+# Install PyTorch CPU from official wheel URL (small + stable)
+RUN pip install --no-cache-dir torch==2.0.1+cpu torchvision==0.15.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
+
+# Now install the rest
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ----------------------------------------------------------
-# 6. Copy application files
+# 5. Copy the app code
 # ----------------------------------------------------------
 COPY . .
 
 # ----------------------------------------------------------
-# 7. Expose FastAPI port
+# 6. Expose port
 # ----------------------------------------------------------
 EXPOSE 8000
 
 # ----------------------------------------------------------
-# 8. Start application
+# 7. Start FastAPI
 # ----------------------------------------------------------
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
