@@ -1,7 +1,7 @@
 # ----------------------------------------------------------
-# 1. Base image WITH PyTorch + CPU support
+# 1. Base image WITH PyTorch (CPU version)
 # ----------------------------------------------------------
-FROM pytorch/pytorch:2.1.0-cpu
+FROM pytorch/pytorch:2.0.1-cpu
 
 # ----------------------------------------------------------
 # 2. Install system dependencies
@@ -34,16 +34,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ----------------------------------------------------------
-# 6. Copy project files
+# 6. Copy application files
 # ----------------------------------------------------------
 COPY . .
 
 # ----------------------------------------------------------
-# 7. Expose port
+# 7. Expose FastAPI port
 # ----------------------------------------------------------
 EXPOSE 8000
 
 # ----------------------------------------------------------
-# 8. Run FastAPI
+# 8. Start application
 # ----------------------------------------------------------
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
