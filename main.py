@@ -76,4 +76,31 @@ async def extract_pdf_ocr(file: UploadFile = File(...)):
 
     # Convert PDF to image pages
     try:
-        pages = convert_from_
+        pages = convert_from_bytes(contents, 300)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF to image conversion error: {str(e)}")
+
+    result = {"file_name": file.filename, "pages": []}
+
+    for page_number, img in enumerate(pages, start=1):
+
+        # OCR extraction
+        try:
+            ocr_results = reader.readtext(img)
+            text = "\n".join([res[1] for res in ocr_results])
+        except Exception as e:
+            text = ""
+            print("OCR error:", e)
+
+        # Convert image to Base64
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        img_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+        result["pages"].append({
+            "page_number": page_number,
+            "ocr_text": text,
+            "page_image_base64": img_b64
+        })
+
+    return JSONResponse(content=result)
