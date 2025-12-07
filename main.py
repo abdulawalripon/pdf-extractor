@@ -1,95 +1,79 @@
-import easyocr
-import os
 import io
-import json
 import base64
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+
+# PDF libraries
 import pdfplumber
+from pdf2image import convert_from_bytes
+
+# OCR
+import easyocr
+
+# Image processing
 from PIL import Image
 
-reader = easyocr.Reader(['bn', 'en'])
+# Initialize EasyOCR (Bangla + English) once
+reader = easyocr.Reader(['bn', 'en'], gpu=False)
 
-app = FastAPI(title="PDF -> JSON Extractor")
+app = FastAPI(title="PDF Extractor API (Normal + EasyOCR)")
 
-@app.post("/extract_ocr")
-async def extract_pdf_ocr(file: UploadFile = File(...)):
-    contents = await file.read()
 
-    # STEP 3-A: Convert PDF → images
-    pages = convert_from_bytes(contents, 300)
-
-    result = {"pages": []}
-
-    for i, img in enumerate(pages, start=1):
-        
-        # STEP 3-C: Use EasyOCR on the image (place code HERE)
-        ocr_results = reader.readtext(img)
-        text = "\n".join([r[1] for r in ocr_results])
-
-        # STEP 3-D: Convert page image to Base64 (optional)
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        img_b64 = base64.b64encode(buffer.getvalue()).decode()
-
-        # Add to output
-        result["pages"].append({
-            "page_number": i,
-            "ocr_text": text,
-            "page_image_base64": img_b64
-        })
-
-    return result
-
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
+# ----------------------------------------------------------
+# 1️⃣ NORMAL EXTRACTION (pdfplumber)
+# ----------------------------------------------------------
 @app.post("/extract")
 async def extract_pdf(file: UploadFile = File(...)):
+    """ Extract text & images using pdfplumber (fast, but cannot fix broken Bangla). """
+
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed.")
-    contents = await file.read()
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large.")
 
-    stream = io.BytesIO(contents)
+    contents = await file.read()
     result = {"file_name": file.filename, "pages": []}
 
     try:
-        with pdfplumber.open(stream) as pdf:
-            for pnum, page in enumerate(pdf.pages, start=1):
-                page_entry = {"page_number": pnum}
-
-                # Extract text
+        with pdfplumber.open(io.BytesIO(contents)) as pdf:
+            for page_number, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
-                page_entry["text"] = text if text else ""
 
-                # Extract full page image as Base64
-                img = page.to_image(resolution=150).original
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                page_entry["page_image_base64"] = base64.b64encode(buf.getvalue()).decode()
-
-                # Extract embedded images (if any)
+                # Extract images
                 images_b64 = []
                 for img in page.images:
                     try:
                         bbox = (img["x0"], img["top"], img["x1"], img["bottom"])
-                        cropped = page.crop(bbox).to_image(resolution=300).original
-                        cb = io.BytesIO()
-                        cropped.save(cb, format="PNG")
-                        images_b64.append({
-                            "bbox": bbox,
-                            "base64": base64.b64encode(cb.getvalue()).decode()
-                        })
-                    except:
-                        pass
-                page_entry["embedded_images"] = images_b64
+                        extracted_img = page.crop(bbox).to_image(resolution=300).original
 
-                result["pages"].append(page_entry)
+                        buffer = io.BytesIO()
+                        extracted_img.save(buffer, format="PNG")
+                        images_b64.append(base64.b64encode(buffer.getvalue()).decode())
+                    except:
+                        continue
+
+                result["pages"].append({
+                    "page_number": page_number,
+                    "text": text if text else "",
+                    "images_base64": images_b64
+                })
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF parsing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Extraction error: {str(e)}")
 
     return JSONResponse(content=result)
 
 
+# ----------------------------------------------------------
+# 2️⃣ OCR EXTRACTION (EasyOCR)
+# ----------------------------------------------------------
+@app.post("/extract_ocr")
+async def extract_pdf_ocr(file: UploadFile = File(...)):
+    """ Extract Bangla + English text using EasyOCR. """
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files allowed.")
+
+    contents = await file.read()
+
+    # Convert PDF to image pages
+    try:
+        pages = convert_from_
