@@ -3,3 +3,8 @@ uvicorn[standard]
 pdfplumber
 pillow
 python-multipart
+pdf2image
+pytesseract
+easyocr
+numpy
+opencv-python-headless
