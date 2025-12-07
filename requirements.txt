@@ -7,4 +7,3 @@ pdf2image
 easyocr
 numpy
 opencv-python-headless
-torch
